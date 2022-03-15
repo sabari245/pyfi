@@ -1,48 +1,46 @@
-from fastapi import FastAPI
-from fastapi.responses import HTMLResponse
-import sys
 import os
-import asyncio
-import uvicorn
+from flask import Flask, Response
 import threading
 
-app = FastAPI()
+app = Flask(__name__)
 last_time = 0
 
 DEBUG_CODE = """
 <script>
-last_time = {last_time}
+last_time = %d;
   function reload() {
-    window.location.reload(true);
-  }
-  fetch('/changes/'+last_time).then(function(response) { 
+    fetch(window.location.origin + '/changes/'+last_time).then(function(response) { 
     if (response.status == 200) {
-      reload();
+      window.location.reload(true);
     }
   });
+  }
+  setInterval(reload, 1000);
 </script>
 """
 
 @app.get("/")
-async def root():
+def root():
   global last_time
   file = open("index.html", "r")
   content = file.read()
-  content = content[: content.find("</body>")] + DEBUG_CODE.format(last_time=last_time) + content[content.find("</body>"):]
+  content = content[: content.find("</body>")] + DEBUG_CODE%(last_time) + content[content.find("</body>"):]
   print(content)
   file.close()
 
-  return HTMLResponse(content=content)
+  return content
 
-@app.get("/changes/{path:path}")
-async def changes(path):
+@app.get("/changes/<int:path>")
+def changes(path):
   global last_time
-  if path < last_time:
+  if path < int(last_time):
     # send 200 as response
-    return {'status': 'ok'}
+    print('Sending 200')
+    return Response(status=200)
   else: 
     # send 404 as response
-    return {'status': 'error'}
+    print('Sending 404')
+    return Response(status=404)
   
 
 
@@ -67,8 +65,9 @@ def set_interval(func, sec):
   t.start()
   return t
 
-set_interval(listener, 0.1)
+t = set_interval(listener, 0.1)
 
 # run the server
 if __name__ == "__main__":
-  uvicorn.run(app, host="0.0.0.0", port=8000)
+  app.run()
+  t.cancel()
